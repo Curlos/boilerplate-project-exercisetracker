@@ -60,17 +60,19 @@ app.post('/api/exercise/add', async(req, res) => {
     const user = await User.findById(req.body.userId);
     console.log(req.body)
 
+    let d = new Date(new Date(req.body.date).getTime() - new Date(req.body.date).getTimezoneOffset() * -60000)
+
     const exercise = new Exercise({
       userId: req.body.userId,
       description: req.body.description,
-      duration: req.body.duration,
-      date: new Date(req.body.date).toString().substring(0,15) != 'Invalid Date' ? new Date(req.body.date).toString().substring(0,15) : new Date().toString().substring(0,15)
+      duration: parseInt(req.body.duration),
+      date: d.toString().substring(0,15) != 'Invalid Date' ? d.toString().substring(0,15) : new Date().toString().substring(0,15)
     })
     exercise.save((err, data) => {
       res.json({
         username: user.username,
         description: data.description,
-        duration: data.duration,
+        duration: parseInt(data.duration),
         "_id": data.userId,
         date: data.date
       });
@@ -81,25 +83,66 @@ app.post('/api/exercise/add', async(req, res) => {
 })
 
 app.get('/api/exercise/log', async (req, res) => {
-  if(Object.keys(req.query).includes('userId')) {
-    try {
-      let user = await User.findById(req.query['userId']).select('_id username');
-      console.log(user)
-      let userExercises = await Exercise.find({userId: req.query['userId']}).select('description duration date')
+  try {
+    let user = await User.findById(req.query['userId']).select('_id username');
+    let userExercises = await Exercise.find({userId: req.query['userId']}).select('description duration date');
+    let qFrom = req.query.from;
+    let qTo = req.query.to;
 
-      res.json({
-        _id: user['_id'],
-        username: user.username,
-        log: [
-          {userExercises}
-        ],
-        count: userExercises.length
+    if(qFrom && !qTo) {
+      let fromDate = new Date(new Date(req.query['from']).getTime() - new Date(req.query['from']).getTimezoneOffset() * -60000)
+      userExercises = userExercises.filter((exercise) => {
+        //console.log(`from: ${new Date(exercise.date).getTime()} - ${new Date(fromDate).getTime()}`)
+        return (
+          new Date(exercise.date).getTime() >= new Date(fromDate).getTime()
+        )
+      }) 
+
+      userExercises.map((exercise) => {
+        console.log(`from: ${new Date(exercise.date).getTime()} - ${new Date(fromDate).getTime()} = ${new Date(exercise.date).getTime() - new Date(fromDate).getTime()}`)
       })
-    } catch (err) {
-      console.log(err)
+    } else if (!qFrom && qTo) {
+      let toDate = new Date(new Date(req.query['to']).getTime() - new Date(req.query['to']).getTimezoneOffset() * -60000) //yyyy-mm-dd date format
+      userExercises = userExercises.filter((exercise) => {
+        //console.log(`to: ${new Date(exercise.date).getTime()} - ${new Date(toDate).getTime()}`)
+        return (
+          new Date(exercise.date).getTime() <= new Date(toDate).getTime()
+        )
+      })
+
+      userExercises.map((exercise) => {
+        console.log(`to: ${new Date(exercise.date).getTime()} - ${new Date(toDate).getTime()} = ${new Date(exercise.date).getTime() - new Date(toDate).getTime()}`)
+      })
+    } else if(qFrom && qTo) {
+      userExercises = userExercises.filter((exercise) => {
+        //console.log(`to: ${new Date(exercise.date).getTime()} - ${new Date(toDate).getTime()}`)
+        let fromDate = new Date(new Date(req.query['from']).getTime() - new Date(req.query['from']).getTimezoneOffset() * -60000)
+        let toDate = new Date(new Date(req.query['to']).getTime() - new Date(req.query['to']).getTimezoneOffset() * -60000) 
+        return (
+          new Date(exercise.date).getTime() >= new Date(fromDate).getTime() && new Date(exercise.date).getTime() <= new Date(toDate).getTime()
+        )
+      })
     }
-  } else {
-    res.json({error: "User ID is required to view exercise log"});
+
+    if(Object.keys(req.query).includes('limit')) {
+      if(isNaN(req.query['limit']) == false) {
+        let amountOfExercises = parseFloat(req.query.limit);
+        userExercises = userExercises.slice(0, amountOfExercises);
+        console.log(amountOfExercises);
+        
+      } 
+    } 
+
+    res.json({
+      _id: user['_id'],
+      username: user.username,
+      log: [
+        {userExercises}
+      ],
+      count: userExercises.length
+    })
+  } catch (err) {
+    res.send(err)
   }
 })
 
