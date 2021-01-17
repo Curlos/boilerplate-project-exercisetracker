@@ -14,7 +14,7 @@ const exerciseSchema = new Schema({
         type: Number,
         required: true
     },
-    date: Date
+    date: String
   })
   
 module.exports = mongoose.model('Exercise', exerciseSchema);
